@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase MQTT Dashboard</title>
+    <style>
+        /* The CSS is the same as the previous version, for a consistent look and feel */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #121212; color: #e0e0e0; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .dashboard { width: 90%; max-width: 600px; background-color: #1e1e1e; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); padding: 25px; border: 1px solid #333; }
+        h2 { margin-top: 0; color: #bb86fc; border-bottom: 2px solid #373737; padding-bottom: 10px; }
+        #data-display { background-color: #2c2c2c; border: 1px solid #444; border-radius: 4px; height: 150px; overflow-y: scroll; padding: 10px; font-family: "Courier New", Courier, monospace; font-size: 0.9em; margin-bottom: 20px; white-space: pre-wrap; }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #a0a0a0; }
+        input[type="text"], input[type="number"] { width: calc(100% - 20px); padding: 10px; border-radius: 4px; border: 1px solid #555; background-color: #333; color: #e0e0e0; font-size: 1em; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 4px; background-color: #03dac6; color: #121212; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
+        button:hover { background-color: #018786; }
+        #status { text-align: center; margin-top: 15px; font-size: 0.9em; }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+</head>
+<body>
+
+    <div class="dashboard">
+        <h2>Live Data Feed (from Arduino)</h2>
+        <div id="data-display">Awaiting messages...</div>
+
+        <h2>Motor Control</h2>
+        <div class="control-group">
+            <label for="publish-topic">Topic to Publish To:</label>
+            <input type="text" id="publish-topic" value="arduino/motor">
+        </div>
+        <div class="control-group">
+            <label for="pwm-value">PWM Value (50-150 recommended):</label>
+            <input type="number" id="pwm-value" min="0" max="255" placeholder="e.g., 100">
+        </div>
+        <button id="publish-btn">Publish Command</button>
+
+        <div id="status">Connecting to Firebase...</div>
+    </div>
+
+    <script>
+        // --- START: PASTE YOUR FIREBASE CONFIG HERE ---
+        // Go to Project Settings -> General -> Your apps -> SDK setup and configuration
+        const firebaseConfig = {
+			apiKey: "AIzaSyBs5g72hly9AvOFYyA6--sMroaATYf3DI8",
+			authDomain: "test-2k23.firebaseapp.com",
+			databaseURL: "https://test-2k23-default-rtdb.firebaseio.com",
+			projectId: "test-2k23",
+			storageBucket: "test-2k23.firebasestorage.app",
+			messagingSenderId: "249549104254",
+			appId: "1:249549104254:web:ce05c4547584c13a70642f",
+			measurementId: "G-JGN7ZP60RW"
+		};
+
+        // --- END: PASTE YOUR FIREBASE CONFIG HERE ---
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Get references to HTML elements
+        const dataDisplay = document.getElementById('data-display');
+        const statusDisplay = document.getElementById('status');
+        const publishBtn = document.getElementById('publish-btn');
+        const topicInput = document.getElementById('publish-topic');
+        const pwmInput = document.getElementById('pwm-value');
+        
+        // --- Firebase Database References ---
+        const liveDataRef = database.ref('arduino/live_data');
+        const controlRef = database.ref('arduino/control');
+
+        // --- Listen for incoming sensor data ---
+        liveDataRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const timestamp = new Date().toLocaleTimeString();
+                // Use JSON.stringify to format the object nicely
+                const dataText = `[${timestamp}] Data:\n${JSON.stringify(data, null, 2)}\n\n`;
+                dataDisplay.innerHTML += dataText;
+                dataDisplay.scrollTop = dataDisplay.scrollHeight;
+            }
+            statusDisplay.textContent = "Connected to Firebase!";
+            statusDisplay.style.color = "#03dac6";
+        }, (error) => {
+            console.error("Firebase read failed: " + error.code);
+            statusDisplay.textContent = "Firebase connection error!";
+            statusDisplay.style.color = "#cf6679";
+        });
+        
+        // --- Function to publish a command ---
+        function publishCommand() {
+            const topic = topicInput.value;
+            const pwmValue = pwmInput.value;
+
+            if (topic === "" || pwmValue === "") {
+                alert("Please enter a topic and a PWM value.");
+                return;
+            }
+
+            // Create a command object
+            const command = {
+                topic: topic,
+                payload: pwmValue,
+                timestamp: new Date().toISOString() // Add a timestamp
+            };
+            
+            // Set the value at the 'control' path in Firebase
+            controlRef.set(command)
+                .then(() => {
+                    console.log("Command sent to Firebase successfully.");
+                })
+                .catch((error) => {
+                    console.error("Failed to send command: ", error);
+                    alert("Failed to send command to Firebase.");
+                });
+        }
+
+        // Add event listener to the publish button
+        publishBtn.addEventListener('click', publishCommand);
+    </script>
+</body>
+</html>
